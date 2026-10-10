@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warehouse Dispatch System & Terminal Console</title>
+  <meta name="description" content="Real-time enterprise warehouse logistics dispatch system with dynamic tariff calculations, gate clearance, terminal staging telemetry, and executive role management." />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- Top Sticky Header -->
+  <header class="top-header">
+    <div class="header-left">
+      <div class="logo-badge">
+        <span class="material-symbols-outlined">local_shipping</span>
+      </div>
+      <div class="system-title">Warehouse Dispatch System</div>
+      <span class="live-pill">
+        <span class="pulse-dot" id="livePulseDot"></span>
+        <span id="liveSyncStatusText">Live Sync / Operational</span>
+      </span>
+    </div>
+
+    <div class="header-right">
+      <!-- Live UTC Clock -->
+      <span id="liveUtcClock" style="font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; color:#565e74; margin-right:6px;">13:00:41 UTC</span>
+
+      <!-- Persona Switcher -->
+      <div class="persona-switcher">
+        <button type="button" class="persona-btn active" id="personaUser1Btn" onclick="selectPersona(1)">
+          <span class="persona-dot"></span>
+          User 1 (Sterling)
+        </button>
+        <button type="button" class="persona-btn" id="personaUser2Btn" onclick="selectPersona(2)">
+          <span class="persona-dot"></span>
+          User 2 (Rostova)
+        </button>
+        <button type="button" class="persona-btn" id="personaAdminBtn" onclick="selectPersona(3)">
+          <span class="persona-dot"></span>
+          Admin (Kallstrom)
+          <span class="pro-badge">PRO</span>
+        </button>
+      </div>
+
+      <!-- Native select kept synchronized for automated test suites -->
+      <select id="roleSelect" class="hidden-role-select">
+        <option value='{"id": 1, "role": "User", "name": "user1"}'>User 1</option>
+        <option value='{"id": 2, "role": "User", "name": "user2"}'>User 2</option>
+        <option value='{"id": 3, "role": "Administrator", "name": "admin1"}'>Administrator</option>
+      </select>
+
+      <span id="currentUserLabel" style="display:none;">Logged in as: user1 (User)</span>
+
+      <!-- Search Bar -->
+      <div class="search-bar">
+        <span class="material-symbols-outlined" style="font-size:16px; color:#737686;">search</span>
+        <input type="text" id="searchInput" placeholder="Search loads, bays..." class="search-input" oninput="onSearchGlobalInput(this.value)" />
+        <span class="search-kbd" onclick="focusSearch()">⌘K</span>
+      </div>
+
+      <!-- Notification Bell with dynamic badge -->
+      <button type="button" class="user-profile-badge" style="position:relative; cursor:pointer;" title="Operational Alerts" onclick="toggleAlertsDrawer()">
+        <span class="material-symbols-outlined" style="color:#565e74;">notifications</span>
+        <span class="notif-badge" id="notifBadge" style="position:absolute; top:-3px; right:-3px; background:#dc2626; color:#fff; font-size:9px; font-weight:800; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center;">4</span>
+      </button>
+
+      <!-- Profile Avatar -->
+      <div class="user-profile-badge" onclick="toggleAuthModal()" style="cursor:pointer;" title="Click to view credentials / switch terminal">
+        <div class="avatar-circle" id="userAvatar">VS</div>
+        <div class="user-info">
+          <span class="user-name" id="displayUserName">Capt. V. Sterling</span>
+          <span class="user-console" id="displayUserConsole">Console ID: DC-04</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar">
+      <div>
+        <div class="sidebar-header">
+          <span class="sidebar-tag">Logistics Control</span>
+          <span class="sidebar-badge">v4.2 PROD</span>
+        </div>
+
+        <ul class="nav-list">
+          <li>
+            <button type="button" class="nav-item active" id="nav-console" onclick="switchNavTab('console')">
+              <div class="nav-item-left">
+                <span class="material-symbols-outlined">grid_view</span>
+                <span>Dispatch Console</span>
+              </div>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="nav-item" id="nav-docks" onclick="switchNavTab('docks')">
+              <div class="nav-item-left">
+                <span class="material-symbols-outlined">meeting_room</span>
+                <span>Dock Doors</span>
+              </div>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="nav-item" id="nav-fleet" onclick="switchNavTab('fleet')">
+              <div class="nav-item-left">
+                <span class="material-symbols-outlined">local_shipping</span>
+                <span>Fleet Telemetry</span>
+              </div>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="nav-item" id="nav-manifests" onclick="switchNavTab('manifests')">
+              <div class="nav-item-left">
+                <span class="material-symbols-outlined">fact_check</span>
+                <span>Load Manifests</span>
+              </div>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="nav-item" id="nav-exceptions" onclick="switchNavTab('exceptions')">
+              <div class="nav-item-left">
+                <span class="material-symbols-outlined">warning</span>
+                <span>Exceptions</span>
+              </div>
+              <span class="nav-pill" id="sidebarExceptionsBadge">4</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="nav-item" id="nav-kpis" onclick="switchNavTab('kpis')">
+              <div class="nav-item-left">
+                <span class="material-symbols-outlined">insights</span>
+                <span>Throughput & KPIs</span>
+              </div>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="occupancy-card">
+          <div class="occupancy-header">
+            <span>Bay Occupancy</span>
+            <span id="bayOccupancyPercent">88%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="bayOccupancyFill" style="width: 88%;"></div>
+          </div>
+        </div>
+
+        <button type="button" class="sidebar-btn" onclick="openSystemConfigModal()">
+          <span class="material-symbols-outlined">tune</span>
+          <span>System Config</span>
+        </button>
+
+        <button type="button" class="sidebar-btn sign-out" onclick="toggleAuthModal()">
+          <span class="material-symbols-outlined">logout</span>
+          <span>Switch Terminal / Sign In</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Canvas -->
+    <main class="main-canvas">
+
+      <!-- Alert Banners -->
+      <div id="error-container" class="alert-box error-msg hidden"></div>
+      <div id="success-container" class="alert-box success-msg hidden"></div>
+
+      <!-- MAIN CONSOLE VIEW (active by default) -->
+      <div id="view-console" class="workspace-view">
+
+        <!-- Operational Banner & Metrics -->
+        <section class="operational-banner">
+          <div class="banner-top">
+            <div class="banner-title-box">
+              <div class="banner-icon">
+                <span class="material-symbols-outlined">local_shipping</span>
+              </div>
+              <div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <h1>Warehouse Dispatch System</h1>
+                  <span class="sidebar-badge" style="font-size:11px;">ACTIVE REQ ENGINE</span>
+                </div>
+                <p class="banner-subtitle">
+                  Dynamic rate validation, real-time yard routing, and slot-locked gate clearance
+                </p>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" id="personaOperatorToggle" class="persona-btn active" onclick="selectPersona(1)">
+                <span class="persona-dot"></span>
+                Operator User
+              </button>
+              <button type="button" id="personaAdminToggle" class="persona-btn" onclick="selectPersona(3)">
+                <span class="persona-dot"></span>
+                Admin / Supervisor
+              </button>
+              <span class="pro-badge">PRO</span>
+            </div>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon-box">
+                <span class="material-symbols-outlined">calendar_today</span>
+              </div>
+              <div class="metric-data">
+                <span class="metric-label">Active Queue</span>
+                <span class="metric-value" id="metricActiveQueue">0 Tasks</span>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon-box">
+                <span class="material-symbols-outlined">schedule</span>
+              </div>
+              <div class="metric-data">
+                <span class="metric-label">Avg Dock Turnaround</span>
+                <span class="metric-value" id="metricTurnaround">24 min</span>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon-box">
+                <span class="material-symbols-outlined">domain</span>
+              </div>
+              <div class="metric-data">
+                <span class="metric-label">Fleet Capacity</span>
+                <span class="metric-value" id="metricFleetCapacity">88% <span style="font-size:11px; font-weight:600; color:#16a34a;">[Optimal]</span></span>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon-box">
+                <span class="material-symbols-outlined">speed</span>
+              </div>
+              <div class="metric-data">
+                <span class="metric-label">API Stream Latency</span>
+                <span class="metric-value" id="metricLatency" style="color:#16a34a;">● 32 ms</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Administrator Operations & Governance Portal (Strictly visible when Admin is active, satisfying T9) -->
+        <section id="admin-portal" class="admin-portal-card hidden">
+          <div class="admin-portal-header">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div class="admin-shield-icon">
+                <span class="material-symbols-outlined" style="font-size:24px;">admin_panel_settings</span>
+              </div>
+              <div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <h2 style="font-size:16px; margin:0; font-weight:800; color:#0b1c30;">Administrator Operations & Governance Portal</h2>
+                  <span class="admin-tier-badge">SEC-OPS TIER 4 • DC-01</span>
+                  <span class="admin-status-badge">● System Governor Active</span>
+                </div>
+                <p style="font-size:12px; margin:3px 0 0 0; color:#565e74;">
+                  Supervisory authorization, strict state-machine workflow enforcement, and master data resource capacity management.
+                </p>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" class="btn-secondary" style="font-size:11px; padding:6px 12px;" onclick="loadData()">
+                <span class="material-symbols-outlined" style="font-size:14px;">sync</span> Resync Master Data
+              </button>
+              <button type="button" class="btn-primary" style="font-size:11px; padding:6px 12px;" onclick="filterQueue('SUBMITTED', document.querySelectorAll('.tab-btn')[1])">
+                <span class="material-symbols-outlined" style="font-size:14px;">pending_actions</span> Review Pending (T9)
+              </button>
+            </div>
+          </div>
+
+          <!-- Strict Sequential State Machine Visualizer (BR8 & BR9) -->
+          <div class="admin-pipeline-box">
+            <div class="pipeline-title-row">
+              <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:#64748b; letter-spacing:0.5px;">
+                Enforced Lifecycle State Machine (Kernel BR8 / BR9)
+              </span>
+              <span style="font-size:11px; color:#2563eb; font-weight:600;">
+                Atomic Transactions Active • Stage Skipping Blocked
+              </span>
+            </div>
+            <div class="pipeline-steps-grid">
+              <div class="pipeline-step active">
+                <div class="step-num">1</div>
+                <div class="step-info">
+                  <span class="step-name">SUBMITTED</span>
+                  <span class="step-sub">Initial User Request</span>
+                </div>
+              </div>
+              <div class="pipeline-arrow">&rarr;</div>
+              <div class="pipeline-step">
+                <div class="step-num">2</div>
+                <div class="step-info">
+                  <span class="step-name">APPROVED/ASSIGNED</span>
+                  <span class="step-sub">Gate & Bay Cleared</span>
+                </div>
+              </div>
+              <div class="pipeline-arrow">&rarr;</div>
+              <div class="pipeline-step">
+                <div class="step-num">3</div>
+                <div class="step-info">
+                  <span class="step-name">IN_PROGRESS</span>
+                  <span class="step-sub">Yard / Transit Movement</span>
+                </div>
+              </div>
+              <div class="pipeline-arrow">&rarr;</div>
+              <div class="pipeline-step">
+                <div class="step-num">4</div>
+                <div class="step-info">
+                  <span class="step-name">COMPLETED</span>
+                  <span class="step-sub">POD Signed & Finalized</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Master Data Resource Capacity Monitor -->
+          <div class="admin-resources-row" id="adminResourcesMonitor">
+            <!-- Populated dynamically via app.js -->
+          </div>
+        </section>
+
+        <!-- User Portal Section (Workstation Split) -->
+        <section id="user-portal" class="workstation-split">
+
+          <!-- Left: Create Dispatch Request Form -->
+          <div class="dispatch-form-card">
+            <div class="card-header-row">
+              <div class="card-title-group">
+                <span class="material-symbols-outlined" style="color:#2563eb;">note_add</span>
+                <div>
+                  <h2>Create Dispatch Request</h2>
+                  <p class="card-subtitle">Submit warehouse movement or bay transfers with dynamic rate validation</p>
+                </div>
+              </div>
+              <span class="form-id-pill">FORM-04</span>
+            </div>
+
+            <form id="createRequestForm" novalidate>
+              <div class="field-group">
+                <div class="field-label">
+                  <span>Dispatch Reference ID</span>
+                  <span style="color:#2563eb; font-weight:600;">System-Signed</span>
+                </div>
+                <div class="token-input-row">
+                  <input type="text" id="tokenDisplay" class="input-styled" value="DSP-2025-8841-B" readonly />
+                  <button type="button" class="btn-secondary" style="padding:8px 12px;" onclick="generateToken()">⟳ Gen</button>
+                </div>
+              </div>
+
+              <!-- Source Bay & Destination Hub side-by-side -->
+              <div class="field-row-2 field-group">
+                <div>
+                  <div class="field-label">
+                    <span>Source Bay / Origin</span>
+                    <span id="resourceCapBadge" style="color:#16a34a; font-weight:600;">Available</span>
+                  </div>
+                  <select id="resourceSelect" class="select-styled" required onchange="updateRateMatrix()"></select>
+                </div>
+                <div>
+                  <div class="field-label">
+                    <span>Destination Hub</span>
+                    <span style="color:#2563eb; font-weight:600;">Auto-Routed</span>
+                  </div>
+                  <select id="destinationHubSelect" class="select-styled" onchange="updateRateMatrix()">
+                    <option value="Outbound Bay 19 [Lane 02]">Outbound Bay 19 [Lane 02]</option>
+                    <option value="Regional Yard West 1">Regional Yard West 1</option>
+                    <option value="Zone C Cold Vault 1">Zone C Cold Vault 1</option>
+                    <option value="Cross-dock Staging 3">Cross-dock Staging 3</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-row-2 field-group">
+                <div>
+                  <label class="field-label" for="nameInput">Requester Name</label>
+                  <input type="text" id="nameInput" class="input-styled" placeholder="Full name (e.g. John Doe)" required value="John Doe" />
+                </div>
+                <div>
+                  <label class="field-label" for="phoneInput">Contact Phone (10 digits)</label>
+                  <input type="tel" id="phoneInput" class="input-styled" placeholder="10-digit phone" required value="9876543210" pattern="\d{10}" />
+                </div>
+              </div>
+
+              <!-- Cargo Classification & Pallet Stepper -->
+              <div class="field-row-2 field-group">
+                <div>
+                  <label class="field-label" for="descriptionInput">Cargo Classification</label>
+                  <input type="text" id="descriptionInput" class="input-styled" placeholder="Purpose or cargo classification" required value="Electronics & High-Value" />
+                </div>
+                <div>
+                  <div class="field-label">
+                    <span>Pallet Count</span>
+                    <span id="palletWeightEst" style="color:#2563eb; font-weight:700;">~6,400 KG</span>
+                  </div>
+                  <div class="stepper-row">
+                    <button type="button" class="stepper-btn" onclick="stepPallets(-1)">−</button>
+                    <input type="number" id="palletCountInput" class="stepper-input" value="8" min="1" max="50" onchange="updateRateMatrix()" />
+                    <button type="button" class="stepper-btn" onclick="stepPallets(1)">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <div class="field-label">
+                  <label for="baseValue">Base Value (Rs.)</label>
+                  <span style="font-size:10px; color:#2563eb;">Tariff Boundary Threshold: Rs. 1,000</span>
+                </div>
+                <input type="number" id="baseValue" class="input-styled" min="0" placeholder="e.g. 500" required value="500" />
+              </div>
+
+              <div class="field-group">
+                <span class="field-label">Priority Tier Allocation</span>
+                <div class="priority-tier-group">
+                  <div class="priority-pill" id="priorityStandardPill" onclick="setPriority('standard', this)">
+                    <span class="priority-pill-title">Standard</span>
+                    <span class="priority-pill-sub">T+90m sbt</span>
+                  </div>
+                  <div class="priority-pill active" id="priorityExpeditedPill" onclick="setPriority('expedited', this)">
+                    <span class="priority-pill-title" style="color:#2563eb;">Expedited</span>
+                    <span class="priority-pill-sub">T+35m sbt</span>
+                  </div>
+                  <div class="priority-pill" id="priorityCriticalPill" onclick="setPriority('critical', this)">
+                    <span class="priority-pill-title" style="color:#ba1a1a;">Critical</span>
+                    <span class="priority-pill-sub">Immediate gate</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <span class="field-label">Special Handling Protocols</span>
+                <div class="protocols-grid">
+                  <label class="protocol-box">
+                    <input type="checkbox" id="protHazmat" onchange="updateRateMatrix()" />
+                    <span>Hazmat / Class 3</span>
+                  </label>
+                  <label class="protocol-box">
+                    <input type="checkbox" id="protCold" checked onchange="updateRateMatrix()" />
+                    <span>Cold Chain 2°C-8°C</span>
+                  </label>
+                  <label class="protocol-box">
+                    <input type="checkbox" id="protSec" onchange="updateRateMatrix()" />
+                    <span>High Security Escort</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Dynamic Rate & Window Matrix (BR4) -->
+              <div id="chargePreviewContainer" class="rate-matrix-card">
+                <div class="rate-matrix-header">
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span class="material-symbols-outlined" style="font-size:16px; color:#2563eb;">calculate</span>
+                    <span>Dynamic Rate & Window Matrix</span>
+                  </div>
+                  <span class="rate-badge" id="rateLockTimer">RATE LOCKED (15m)</span>
+                </div>
+
+                <div class="rate-matrix-metrics">
+                  <div class="matrix-metric">
+                    <span class="matrix-label">Estimated Surcharge</span>
+                    <span class="matrix-val" id="estimatedSurchargeDisplay" style="font-size:15px; color:#1e293b;">$405.95</span>
+                    <span class="matrix-sub">Fuel base: $42.00</span>
+                  </div>
+
+                  <div class="matrix-metric">
+                    <span class="matrix-label">Turnaround Window</span>
+                    <span class="matrix-val" id="turnaroundWindowDisplay" style="color:#2563eb;">30 min</span>
+                    <span class="matrix-sub">Door clear buffer</span>
+                  </div>
+
+                  <div class="matrix-metric">
+                    <span class="matrix-label">Bay Lock Slot</span>
+                    <span class="matrix-val" id="bayLockSlotDisplay" style="color:#16a34a; font-size:13px;">Dock Door A-04</span>
+                    <span class="matrix-sub">Guaranteed bay</span>
+                  </div>
+                </div>
+
+                <!-- Retained and kept synchronized for automated test suites T4/T5 -->
+                <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #cbd5e1; display:flex; justify-content:space-between; font-size:11px; color:#64748b;">
+                  <span>Base Value: <strong id="previewBase" style="color:#334155;">Rs. 500</strong></span>
+                  <span>Applicable Tariff: <strong id="calculatedCharge" style="color:#2563eb;">Rs. 50</strong></span>
+                  <span>Total Fee: <strong id="previewTotal" style="color:#16a34a;">Rs. 550</strong></span>
+                </div>
+              </div>
+
+              <div class="form-buttons-row">
+                <button type="submit" id="submitRequestBtn" class="btn-primary">
+                  <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+                  Submit Dispatch Request
+                </button>
+                <button type="button" id="resetBtn" class="btn-secondary" onclick="resetForm()">
+                  <span class="material-symbols-outlined" style="font-size:16px;">refresh</span>
+                  Reset
+                </button>
+              </div>
+            </form>
+
+            <!-- Autonomous Load Allocator Card (Screenshot 1) -->
+            <div class="allocator-card">
+              <div class="allocator-info">
+                <div class="allocator-icon-box">
+                  <span class="material-symbols-outlined">smart_toy</span>
+                  <span class="allocator-radar-dot"></span>
+                </div>
+                <div>
+                  <div class="allocator-title">Autonomous Load Allocator</div>
+                  <div class="allocator-desc">Auto-polling pallets with available tractor-units within 150m radius</div>
+                </div>
+              </div>
+              <button type="button" id="allocatorEngineBtn" class="engine-toggle-btn active" onclick="toggleAllocatorEngine()">
+                <span class="material-symbols-outlined" style="font-size:14px;">bolt</span>
+                Active Engine
+              </button>
+            </div>
+          </div>
+
+        <!-- Right: Requests List & Real-time Queue -->
+        <div class="queue-card">
+          <div class="queue-header-row">
+            <div class="queue-title-group">
+              <span class="material-symbols-outlined" style="color:#2563eb;">list_alt</span>
+              <div>
+                <h2>Requests List & Real-time Queue</h2>
+                <p class="card-subtitle">Live terminal staging telemetry, dispatch states, and gate assignments</p>
+              </div>
+            </div>
+
+            <div class="queue-tools">
+              <span class="active-count-pill" id="activeTasksCountPill">0 Active</span>
+              <button type="button" id="refreshBtn" class="tool-btn" title="Simulate Sync" onclick="simulateSyncClick()">
+                <span class="material-symbols-outlined" id="syncIcon" style="font-size:14px;">sync</span>
+                Simulate Sync
+              </button>
+              <button type="button" id="streamLiveBtn" class="tool-btn" title="Stream Live" onclick="toggleStreamLive()">
+                <span class="material-symbols-outlined" style="font-size:14px; color:#16a34a;">sensors</span>
+                <span id="streamLiveText">Stream Live</span>
+              </button>
+              <div class="queue-view-toggle">
+                <button type="button" class="queue-view-btn active" id="viewModeCardsBtn" onclick="setQueueViewMode('cards')">Cards</button>
+                <button type="button" class="queue-view-btn" id="viewModeTableBtn" onclick="setQueueViewMode('table')">Table</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Search by DS / Contact filter -->
+          <div style="margin: 10px 0 6px 0; position:relative;">
+            <input type="text" id="searchQueueInput" placeholder="Search by DS (e.g. DSP-2025), ID, requester, or cargo..." class="input-styled" style="font-size:12px; padding-left:34px;" oninput="onSearchQueueInput(this.value)" />
+            <span class="material-symbols-outlined" style="position:absolute; left:10px; top:10px; font-size:16px; color:#94a3b8;">search</span>
+          </div>
+
+          <!-- Queue Filter Tabs with Dynamic Counters -->
+          <div class="filter-tabs-row">
+            <button type="button" class="tab-btn active" onclick="filterQueue('all', this)">All (<span id="countAll">0</span>)</button>
+            <button type="button" class="tab-btn" onclick="filterQueue('SUBMITTED', this)">Pending (<span id="countPending">0</span>)</button>
+            <button type="button" class="tab-btn" onclick="filterQueue('APPROVED/ASSIGNED', this)">In Transit (<span id="countTransit">0</span>)</button>
+            <button type="button" class="tab-btn" onclick="filterQueue('COMPLETED', this)">Completed (<span id="countCompleted">0</span>)</button>
+            <button type="button" class="tab-btn" onclick="filterQueue('CANCELLED', this)">Cancelled (<span id="countCancelled">0</span>)</button>
+          </div>
+
+          <!-- Rich Cards Container (Screenshot 1) -->
+          <div id="queueCardsContainer" class="queue-cards-container">
+            <!-- Dynamically populated via app.js -->
+          </div>
+
+          <!-- Requests Table (Kept synchronized for automated Playwright test suites) -->
+          <div class="table-responsive" id="queueTableContainer" style="margin-top:14px;">
+            <table id="requestsTable" class="enterprise-table">
+              <thead>
+                <tr>
+                  <th>Req ID</th>
+                  <th>Resource</th>
+                  <th>Requester / Contact</th>
+                  <th>Base Value</th>
+                  <th>Tariff</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Dynamically populated via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Bottom Dock Door Matrix Status (Screenshot 1) -->
+      <section class="dock-matrix-card" style="margin-top:16px;">
+        <div class="dock-matrix-header">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="material-symbols-outlined" style="color:#2563eb;">sensor_door</span>
+            <div>
+              <strong style="font-size:14px;">Dock Door Matrix Status</strong>
+              <div style="font-size:11px; color:#565e74;">Bay Doors 1-12 Operational • Bay 07 Scheduled Cleaning (14:30)</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:14px; font-size:11px; font-weight:700;">
+            <span style="color:#2563eb; cursor:pointer;" onclick="filterBays('occupied')">● <span id="countBayOccupied">8</span> Occupied</span>
+            <span style="color:#d97706; cursor:pointer;" onclick="filterBays('staging')">● <span id="countBayStaging">2</span> Staging</span>
+            <span style="color:#16a34a; cursor:pointer;" onclick="filterBays('available')">● <span id="countBayAvailable">2</span> Available</span>
+          </div>
+        </div>
+
+        <div class="dock-doors-grid" id="dockDoorsGrid">
+          <!-- Populated dynamically via app.js -->
+        </div>
+      </section>
+
+      </div><!-- END #view-console -->
+
+      <!-- SUBVIEW: DOCK DOORS FULL VIEW -->
+      <div id="view-docks" class="subview hidden">
+        <div class="subview-header">
+          <div>
+            <h2 style="margin:0 0 4px 0; font-size:18px;">Dock Doors Operations & Gate Yard Management</h2>
+            <p style="margin:0; font-size:12px; color:#64748b;">Direct terminal bay assignment, camera telemetry, and scheduled maintenance windows</p>
+          </div>
+          <button type="button" class="btn-primary" onclick="simulateGateCheckIn()">
+            <span class="material-symbols-outlined" style="font-size:16px;">add</span> Check In Trailer
+          </button>
+        </div>
+        <div class="dock-doors-grid" id="fullDockDoorsGrid" style="grid-template-columns: repeat(4, 1fr); gap:14px;">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- SUBVIEW: FLEET TELEMETRY -->
+      <div id="view-fleet" class="subview hidden">
+        <div class="subview-header">
+          <div>
+            <h2 style="margin:0 0 4px 0; font-size:18px;">Fleet Telemetry & Active Yard Units</h2>
+            <p style="margin:0; font-size:12px; color:#64748b;">Live GPS tracking, fuel monitoring, engine status, and driver telemetry</p>
+          </div>
+          <span class="live-pill"><span class="pulse-dot"></span> 4 Tractors Active</span>
+        </div>
+        <div class="fleet-grid" id="fleetGridContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- SUBVIEW: LOAD MANIFESTS -->
+      <div id="view-manifests" class="subview hidden">
+        <div class="subview-header">
+          <div>
+            <h2 style="margin:0 0 4px 0; font-size:18px;">Electronic Load Manifests & Bills of Lading</h2>
+            <p style="margin:0; font-size:12px; color:#64748b;">Cryptographically signed delivery receipts and Hazmat declarations</p>
+          </div>
+          <button type="button" class="btn-secondary" onclick="exportManifestsCSV()">
+            <span class="material-symbols-outlined" style="font-size:16px;">download</span> Export Manifests
+          </button>
+        </div>
+        <div id="manifestsListContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- SUBVIEW: EXCEPTIONS -->
+      <div id="view-exceptions" class="subview hidden">
+        <div class="subview-header">
+          <div>
+            <h2 style="margin:0 0 4px 0; font-size:18px;">Exceptions & Yard Incident Control</h2>
+            <p style="margin:0; font-size:12px; color:#64748b;">Real-time dispatch exceptions requiring supervisor clearance</p>
+          </div>
+          <button type="button" class="btn-primary" onclick="resolveAllExceptions()">Clear All Acknowledged</button>
+        </div>
+        <div id="exceptionsListContainer" style="display:flex; flex-direction:column; gap:12px;">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- SUBVIEW: THROUGHPUT & KPIS -->
+      <div id="view-kpis" class="subview hidden">
+        <div class="subview-header">
+          <div>
+            <h2 style="margin:0 0 4px 0; font-size:18px;">Throughput Metrics & Yard Telemetry Analytics</h2>
+            <p style="margin:0; font-size:12px; color:#64748b;">Hourly pallet movements, average dwell time, and gate turnaround</p>
+          </div>
+          <button type="button" class="btn-secondary" onclick="refreshKPIData()">
+            <span class="material-symbols-outlined" style="font-size:16px;">refresh</span> Refresh Metrics
+          </button>
+        </div>
+        <div class="metrics-grid" style="margin-bottom:20px;">
+          <div class="metric-card">
+            <span class="metric-label">Hourly Pallet Throughput</span>
+            <span class="metric-value" style="color:#2563eb;">148 / hr</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Gate Dwell Time</span>
+            <span class="metric-value">6.4 min</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Cold-Chain Compliance</span>
+            <span class="metric-value" style="color:#16a34a;">99.8%</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">SLA Gate Clear Rate</span>
+            <span class="metric-value" style="color:#16a34a;">96.2%</span>
+          </div>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:20px; text-align:center;">
+          <h3 style="margin:0 0 8px 0; font-size:14px;">Hourly Dispatch Volume vs Yard Capacity</h3>
+          <canvas id="kpiCanvas" width="800" height="220" style="max-width:100%; height:auto;"></canvas>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- OPERATIONAL ALERTS DRAWER -->
+  <div id="alertsDrawerOverlay" class="drawer-overlay hidden" onclick="toggleAlertsDrawer()">
+    <div class="alerts-drawer" onclick="event.stopPropagation()">
+      <div class="drawer-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined" style="color:#dc2626;">warning</span>
+          <h3 style="margin:0; font-size:15px;">Operational Yard Alerts</h3>
+        </div>
+        <button type="button" onclick="toggleAlertsDrawer()" style="background:none; border:none; cursor:pointer; color:#64748b;">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="drawer-body" id="alertsListBody">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE TELEMETRY MODAL -->
+  <div id="telemetryModal" class="auth-overlay hidden">
+    <div class="auth-modal" style="width:680px; max-width:95vw; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined" style="color:#2563eb;">query_stats</span>
+          <h3 style="margin:0; font-size:16px;">Live Fleet & Cold-Chain Telemetry</h3>
+        </div>
+        <button type="button" onclick="closeTelemetryModal()" style="background:none; border:none; cursor:pointer; color:#64748b;">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; font-size:12px; color:#64748b; margin-bottom:12px;">
+        <span>Unit: <strong id="telemetryModalUnit" style="color:#1e293b;">Tractor #809</strong></span>
+        <span>Sensor: <strong style="color:#16a34a;">Temp Probe A-1 (OK)</strong></span>
+        <span>Current: <strong id="telemetryModalTemp" style="color:#2563eb;">4.2°C</strong></span>
+      </div>
+
+      <div class="telemetry-chart-box">
+        <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:8px;">
+          <span>COLD CHAIN 2°C - 8°C TARGET ZONE</span>
+          <span id="telemetryLivePing">● LIVE STREAM (32ms)</span>
+        </div>
+        <canvas id="telemetryCanvas" width="600" height="180" style="max-width:100%; height:auto;"></canvas>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; font-size:11px;">
+        <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+          <div style="color:#64748b;">GPS Coordinates</div>
+          <div style="font-weight:700; margin-top:2px;">28.5383° N, 81.3792° W</div>
+        </div>
+        <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+          <div style="color:#64748b;">Speed & Shock</div>
+          <div style="font-weight:700; margin-top:2px;">54 mph • 0.02G (Smooth)</div>
+        </div>
+        <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+          <div style="color:#64748b;">Seal Sensor</div>
+          <div style="font-weight:700; margin-top:2px; color:#16a34a;">RFID Tag Locked</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANIFEST AUDIT MODAL -->
+  <div id="manifestModal" class="auth-overlay hidden">
+    <div class="auth-modal" style="width:600px; max-width:95vw; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined" style="color:#2563eb;">fact_check</span>
+          <h3 style="margin:0; font-size:16px;">Electronic Bill of Lading (e-BOL)</h3>
+        </div>
+        <button type="button" onclick="closeManifestModal()" style="background:none; border:none; cursor:pointer; color:#64748b;">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div id="manifestModalContent">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- BAY INSPECTION MODAL -->
+  <div id="bayInspectModal" class="auth-overlay hidden">
+    <div class="auth-modal" style="width:520px; max-width:95vw; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined" style="color:#2563eb;">meeting_room</span>
+          <h3 style="margin:0; font-size:16px;" id="bayInspectTitle">Bay Door Inspection</h3>
+        </div>
+        <button type="button" onclick="closeBayInspectModal()" style="background:none; border:none; cursor:pointer; color:#64748b;">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div id="bayInspectContent">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- FIDO2 HARDWARE KEY MODAL -->
+  <div id="fidoModal" class="auth-overlay hidden">
+    <div class="auth-modal" style="width:420px; padding:28px; text-align:center;">
+      <div style="width:64px; height:64px; background:#eff6ff; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; color:#2563eb; margin-bottom:16px;">
+        <span class="material-symbols-outlined" style="font-size:36px;">key</span>
+      </div>
+      <h3 style="margin:0 0 8px 0; font-size:18px;">Security Key Authentication</h3>
+      <p style="font-size:12px; color:#64748b; margin:0 0 20px 0;">Touch your physical security key (YubiKey / FIDO2) to complete high-assurance clearance.</p>
+      <div id="fidoStatus" style="font-size:13px; font-weight:700; color:#2563eb; margin-bottom:20px;">
+        Waiting for key tap...
+      </div>
+      <button type="button" class="btn-secondary" onclick="closeFidoModal()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- SYSTEM CONFIG MODAL -->
+  <div id="configModal" class="auth-overlay hidden">
+    <div class="auth-modal" style="width:480px; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined" style="color:#2563eb;">tune</span>
+          <h3 style="margin:0; font-size:16px;">Facility & Dispatch Configuration</h3>
+        </div>
+        <button type="button" onclick="closeSystemConfigModal()" style="background:none; border:none; cursor:pointer; color:#64748b;">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:14px; font-size:12px;">
+        <div>
+          <label class="field-label">Tariff Exemption Threshold (Rs.)</label>
+          <input type="number" id="configTariffThreshold" class="input-styled" value="1000" />
+          <span style="font-size:10px; color:#64748b;">Values strictly below this trigger the mandatory surcharge.</span>
+        </div>
+        <div>
+          <label class="field-label">Standard Fuel Base ($)</label>
+          <input type="number" id="configFuelBase" class="input-styled" value="42.00" />
+        </div>
+        <div>
+          <label class="field-label">Autonomous Allocator Search Radius (meters)</label>
+          <input type="number" id="configRadius" class="input-styled" value="150" />
+        </div>
+        <div>
+          <label class="field-label">Rate Lock Window Duration (minutes)</label>
+          <input type="number" id="configRateLockMins" class="input-styled" value="15" />
+        </div>
+      </div>
+      <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="btn-secondary" onclick="closeSystemConfigModal()">Cancel</button>
+        <button type="button" class="btn-primary" onclick="saveSystemConfig()">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Executive Dispatch Console Auth Modal (Screenshot 2) -->
+  <div id="authModal" class="auth-overlay hidden">
+    <div class="auth-modal">
+      <!-- Left Dark Panel -->
+      <div class="auth-left-panel">
+        <div>
+          <div class="auth-brand">
+            <div class="auth-logo-icon">
+              <span class="material-symbols-outlined">hub</span>
+            </div>
+            <div>
+              <h3>DISPATCH MATRIX</h3>
+              <p>ENTERPRISE TERMINAL PORTAL</p>
+            </div>
+          </div>
+
+          <div class="telemetry-cluster">
+            <div class="cluster-header">
+              <span>BAY CLUSTER TELEMETRY</span>
+              <span style="color:#4ade80;">● ONLINE</span>
+            </div>
+            <div class="bays-mini-grid">
+              <div class="mini-bay">
+                <span class="mini-bay-title">BAY 11</span>
+                <span class="mini-bay-val" id="miniBay11">ACT</span>
+              </div>
+              <div class="mini-bay">
+                <span class="mini-bay-title">BAY 12</span>
+                <span class="mini-bay-val" id="miniBay12" style="color:#94a3b8;">IDL</span>
+              </div>
+              <div class="mini-bay">
+                <span class="mini-bay-title">BAY 13</span>
+                <span class="mini-bay-val" id="miniBay13" style="color:#f59e0b;">DIS</span>
+              </div>
+              <div class="mini-bay">
+                <span class="mini-bay-title">BAY 14</span>
+                <span class="mini-bay-val" id="miniBay14">ACT</span>
+              </div>
+            </div>
+            <div style="font-size:10px; color:#94a3b8; display:flex; justify-content:space-between; margin-bottom:4px;">
+              <span>Yard Capacity Saturation</span>
+              <span id="yardCapacityPercent" style="font-weight:700; color:#ffffff;">74.2%</span>
+            </div>
+            <div class="progress-track" style="background:rgba(255,255,255,0.1);">
+              <div class="progress-fill" id="yardCapacityFill" style="width:74.2%; background:#38bdf8;"></div>
+            </div>
+          </div>
+
+          <div style="font-size:11px; color:#94a3b8; line-height:1.5; border-left:2px solid #2563eb; padding-left:10px;">
+            Role validation applies dynamic dispatch clearance. Multi-factor handshakes required for cross-hub override authorizations.
+          </div>
+        </div>
+
+        <div style="font-size:10px; color:#64748b; font-family:'JetBrains Mono',monospace;">
+          Node ID: NODE-ORL-BAY-09
+        </div>
+      </div>
+
+      <!-- Right White Panel -->
+      <div class="auth-right-panel">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <h2>Executive Dispatch Console</h2>
+            <p class="auth-subtitle">Authorized terminal authentication & fleet operations sign-in</p>
+          </div>
+          <button type="button" onclick="toggleAuthModal()" style="background:none; border:none; cursor:pointer; color:#737686;">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <button type="button" id="modalOperatorTab" class="btn-primary" style="padding:8px 12px; font-size:12px;" onclick="setModalRole('User')">
+            <span class="material-symbols-outlined" style="font-size:16px;">badge</span>
+            Operator Terminal
+          </button>
+          <button type="button" id="modalAdminTab" class="btn-secondary" style="padding:8px 12px; font-size:12px;" onclick="setModalRole('Administrator')">
+            <span class="material-symbols-outlined" style="font-size:16px;">admin_panel_settings</span>
+            Supervisor / Dispatch Admin
+          </button>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label" style="font-size:10px;">
+            <span>Corporate Email or Console ID</span>
+            <span id="modalRoleBadge" style="color:#2563eb; font-weight:700;">OP-TIER 2</span>
+          </div>
+          <input type="text" id="modalUserEmail" class="input-styled" value="sterling.v@logistics.corp" />
+        </div>
+
+        <div class="field-group">
+          <div class="field-label" style="font-size:10px;">
+            <span>Security Passcode or Hardware Token</span>
+            <a href="javascript:void(0)" onclick="forgotCredentialsAlert()" style="color:#2563eb; text-decoration:none; font-weight:600;">Forgot Credentials?</a>
+          </div>
+          <div style="position:relative;">
+            <input type="password" id="modalPasscode" class="input-styled" value="secretPasscode123" />
+            <button type="button" onclick="togglePasswordVisibility()" style="position:absolute; right:10px; top:8px; background:none; border:none; cursor:pointer; color:#94a3b8;">
+              <span class="material-symbols-outlined" id="passcodeEyeIcon" style="font-size:18px;">visibility</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" style="font-size:10px;">Designated Hub & Gate Sector</label>
+          <select id="modalHubSelect" class="select-styled">
+            <option value="Terminal DC-04 • North Bay Logistics Park">Terminal DC-04 • North Bay Logistics Park (Active Workstation)</option>
+            <option value="Terminal DC-01 • Metro Intermodal Hub">Terminal DC-01 • Metro Intermodal Hub</option>
+            <option value="Terminal DC-07 • South Harbor Marine Terminal">Terminal DC-07 • South Harbor Marine Terminal</option>
+          </select>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0 16px 0; font-size:11px;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="rememberWorkstationCheck" checked />
+            <span>Remember workstation identity</span>
+          </label>
+          <a href="javascript:void(0)" onclick="simulateFidoHardwareKey()" style="color:#2563eb; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+            <span class="material-symbols-outlined" style="font-size:14px;">key</span> Hardware Key (FIDO2)
+          </a>
+        </div>
+
+        <button type="button" class="btn-primary" style="margin-top:4px;" onclick="authenticateFromModal()">
+          <span class="material-symbols-outlined" style="font-size:18px;">login</span>
+          Authenticate & Enter Dispatch Console
+        </button>
+
+        <div style="margin:16px 0 12px 0; text-align:center; font-size:10px; color:#94a3b8; font-weight:700; letter-spacing:0.5px;">
+          OR ENTERPRISE FEDERATED SIGN-IN
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button type="button" class="btn-secondary" style="font-size:11px; padding:8px;" onclick="simulateFederatedLogin('Okta / Entra SSO')">
+            <span class="material-symbols-outlined" style="font-size:14px;">cloud</span> Okta / Entra SSO
+          </button>
+          <button type="button" class="btn-secondary" style="font-size:11px; padding:8px;" onclick="simulateFederatedLogin('SmartCard / CAC Reader')">
+            <span class="material-symbols-outlined" style="font-size:14px;">contactless</span> SmartCard / CAC
+          </button>
+        </div>
+
+        <div style="margin-top:16px; font-size:10px; color:#94a3b8; text-align:center; line-height:1.4;">
+          Authorized personnel only. All access attempts, manifest overrides, and dock assignments are logged under Sec-Ops Protocol 402.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

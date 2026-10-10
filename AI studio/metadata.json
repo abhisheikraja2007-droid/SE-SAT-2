@@ -1,0 +1,6 @@
+{
+  "name": "Warehouse Dispatch System & Terminal Console",
+  "description": "Real-time enterprise warehouse logistics dispatch system with dynamic tariff calculations, gate clearance, terminal staging telemetry, and executive role management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
